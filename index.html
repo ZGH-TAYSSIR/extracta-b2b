@@ -293,6 +293,25 @@
   .issues-list strong { display: block; margin-bottom: 4px; }
   .issues-list ul { margin: 4px 0 0; padding-left: 18px; line-height: 1.7; }
 
+  .json-section { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--border); }
+  .json-actions { display: flex; gap: 8px; margin-top: 10px; }
+  .json-actions .btn-outline { padding: 7px 14px; font-size: 12px; }
+  .json-block {
+    margin-top: 12px;
+    background: var(--card-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11.5px;
+    color: var(--teal);
+    overflow-x: auto;
+    max-height: 320px;
+    overflow-y: auto;
+    white-space: pre;
+    line-height: 1.6;
+  }
+
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
 
   footer.hint { text-align: center; padding: 20px; font-size: 11.5px; color: var(--text-faint); font-family: 'IBM Plex Mono', monospace; }
@@ -454,6 +473,7 @@
   }
 
   function renderResults(data) {
+    lastResult = data;
     const ex = data.extraction || {};
     const header = ex.header || {};
     const summary = ex.summary || {};
@@ -542,6 +562,15 @@
           <span class="source-tag">détection : ${sourceLabel}</span>
           <span class="badge ${isCoherent ? '' : 'bad'}">${isCoherent ? '✓ cohérent' : '⚠ écart détecté'}</span>
         </div>
+
+        <div class="json-section">
+          <button class="btn-outline" id="toggleJsonBtn" type="button">Voir le JSON</button>
+          <div class="json-actions" id="jsonActions" style="display:none;">
+            <button class="btn-outline" id="copyJsonBtn" type="button">Copier</button>
+            <button class="btn-outline" id="downloadJsonBtn" type="button">Télécharger .json</button>
+          </div>
+          <pre class="json-block" id="jsonBlock" style="display:none;">${escapeHtml(JSON.stringify(data, null, 2))}</pre>
+        </div>
       </div>
     `;
   }
@@ -549,6 +578,36 @@
   function renderError(message) {
     resultsShell.innerHTML = `<p class="empty-note" style="color: var(--danger);">${escapeHtml(message)}</p>`;
   }
+
+  let lastResult = null;
+
+  resultsShell.addEventListener('click', (e) => {
+    const t = e.target;
+    if (t.id === 'toggleJsonBtn') {
+      const block = document.getElementById('jsonBlock');
+      const actions = document.getElementById('jsonActions');
+      const show = block.style.display === 'none';
+      block.style.display = show ? 'block' : 'none';
+      actions.style.display = show ? 'flex' : 'none';
+      t.textContent = show ? 'Masquer le JSON' : 'Voir le JSON';
+    }
+    if (t.id === 'copyJsonBtn' && lastResult) {
+      navigator.clipboard.writeText(JSON.stringify(lastResult, null, 2)).then(() => {
+        const original = t.textContent;
+        t.textContent = 'Copié ✓';
+        setTimeout(() => { t.textContent = original; }, 1500);
+      }).catch(() => { t.textContent = 'Échec de la copie'; });
+    }
+    if (t.id === 'downloadJsonBtn' && lastResult) {
+      const blob = new Blob([JSON.stringify(lastResult, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'extraction.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  });
 
   analyzeBtn.addEventListener('click', async () => {
     if (!selectedFile || !apiUrl) return;
