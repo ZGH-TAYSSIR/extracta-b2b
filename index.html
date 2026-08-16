@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Extracta B2B — Extraction de factures</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0A0D14;
+    --card: #10141D;
+    --card-2: #151A26;
+    --border: #232838;
+    --border-soft: #1B202E;
+    --text: #F2F1EC;
+    --text-muted: #8A8F9C;
+    --text-faint: #565C6C;
+    --amber: #F5A623;
+    --teal: #4FD1C5;
+    --grad: linear-gradient(90deg, var(--amber) 0%, var(--teal) 100%);
+    --success: #4FD1A0;
+    --success-bg: rgba(79,209,160,0.08);
+    --success-border: rgba(79,209,160,0.3);
+    --danger: #F0806B;
+    --danger-bg: rgba(240,128,107,0.08);
+    --danger-border: rgba(240,128,107,0.3);
+    --radius: 14px;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .mono { font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; }
+
+  .grid-texture {
+    background-image: radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px);
+    background-size: 18px 18px;
+  }
+
+  /* ---------- Top bar ---------- */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 18px 32px;
+    border-bottom: 1px solid var(--border-soft);
+    flex-wrap: wrap;
+  }
+
+  .brand { display: flex; align-items: center; gap: 11px; }
+  .brand-mark {
+    width: 34px; height: 34px;
+    border-radius: 9px;
+    background: var(--grad);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 13px; color: #0A0D14;
+    flex-shrink: 0;
+  }
+  .brand-text h1 { font-size: 15px; margin: 0; font-weight: 700; letter-spacing: -0.2px; }
+  .brand-text p {
+    margin: 2px 0 0; font-size: 10.5px; color: var(--text-faint);
+    text-transform: uppercase; letter-spacing: 1.6px; font-family: 'IBM Plex Mono', monospace;
+  }
+
+  .status-pill {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--card-2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 7px 14px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11.5px;
+    color: var(--text-muted);
+  }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-faint); flex-shrink: 0; }
+  .status-dot.ok { background: var(--success); box-shadow: 0 0 6px rgba(79,209,160,0.6); }
+  .status-dot.err { background: var(--danger); }
+  .status-dot.pending { background: var(--amber); }
+
+  .api-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .api-row input {
+    background: var(--card-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    padding: 9px 12px;
+    border-radius: 8px;
+    width: 270px;
+    max-width: 40vw;
+  }
+  .api-row input::placeholder { color: var(--text-faint); }
+  .api-row input:focus-visible,
+  button:focus-visible,
+  .dropzone:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+
+  .btn-connect {
+    background: var(--card-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    font-size: 12px; font-weight: 500;
+    padding: 9px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .btn-connect:hover { border-color: var(--teal); }
+
+  /* ---------- Hero ---------- */
+  .hero { max-width: 760px; margin: 0 auto; padding: 56px 32px 28px; text-align: center; }
+  .eyebrow {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px; letter-spacing: 3px; text-transform: uppercase;
+    color: var(--amber); margin: 0 0 16px;
+  }
+  .hero h2 {
+    font-size: clamp(28px, 4.2vw, 42px);
+    font-weight: 800; line-height: 1.15; margin: 0 0 16px; letter-spacing: -0.5px;
+  }
+  .hero h2 .gradient-text {
+    background: var(--grad);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .hero p { color: var(--text-muted); font-size: 15px; line-height: 1.7; margin: 0 auto; max-width: 560px; }
+
+  /* ---------- Main ---------- */
+  main { max-width: 720px; margin: 0 auto; padding: 12px 32px 60px; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+
+  .dropzone {
+    padding: 44px 20px;
+    text-align: center;
+    cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: 16px;
+    transition: border-color 0.15s ease;
+  }
+  .dropzone.dragover { border-color: var(--teal); }
+
+  .drop-icon {
+    width: 52px; height: 52px; border-radius: 12px;
+    background: var(--card-2);
+    border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--amber);
+  }
+
+  .dropzone .filename { font-weight: 700; font-size: 15px; }
+  .dropzone .filesub { color: var(--text-faint); font-size: 12.5px; font-family: 'IBM Plex Mono', monospace; }
+
+  .btn-row { display: flex; gap: 10px; margin-top: 4px; flex-wrap: wrap; justify-content: center; }
+
+  .btn-gradient {
+    background: var(--grad);
+    border: none;
+    color: #0A0D14;
+    font-family: 'Inter', sans-serif;
+    font-weight: 700; font-size: 13.5px;
+    padding: 11px 22px;
+    border-radius: 24px;
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+  }
+  .btn-gradient:hover:not(:disabled) { opacity: 0.88; }
+  .btn-gradient:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  .btn-outline {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-family: 'Inter', sans-serif;
+    font-weight: 500; font-size: 13.5px;
+    padding: 11px 20px;
+    border-radius: 24px;
+    cursor: pointer;
+  }
+  .btn-outline:hover { border-color: var(--text-muted); color: var(--text); }
+
+  .preview-img-wrap {
+    width: 100%;
+    max-height: 220px;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    margin-bottom: 6px;
+  }
+  .preview-img-wrap img { width: 100%; display: block; max-height: 220px; object-fit: contain; background: #060810; }
+
+  .progress-bar { height: 2px; background: var(--border); overflow: hidden; }
+  .scanning .progress-bar::after {
+    content: ''; display: block; height: 100%; width: 40%;
+    background: var(--grad);
+    animation: indeterminate 1.1s ease-in-out infinite;
+  }
+  @keyframes indeterminate { 0% { transform: translateX(-100%); } 100% { transform: translateX(350%); } }
+  @media (prefers-reduced-motion: reduce) { .scanning .progress-bar::after { animation: none; width: 100%; } }
+
+  .error-box {
+    margin-top: 16px;
+    background: var(--danger-bg);
+    border: 1px solid var(--danger-border);
+    color: var(--danger);
+    font-size: 12.5px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    line-height: 1.5;
+  }
+
+  /* ---------- Results ---------- */
+  .results-wrap { margin-top: 24px; }
+  .panel-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--text-faint); margin: 0 0 12px;
+  }
+
+  .empty-note { text-align: center; padding: 20px; color: var(--text-faint); font-size: 13px; }
+
+  .doc { padding: 30px; }
+
+  .doc-head {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding-bottom: 18px; margin-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap; gap: 12px;
+  }
+  .doc-head .num-label { font-size: 11px; color: var(--text-faint); margin-bottom: 4px; font-family: 'IBM Plex Mono', monospace; text-transform: uppercase; letter-spacing: 1px; }
+  .doc-head .num { font-size: 19px; font-weight: 700; }
+  .doc-head .date { text-align: right; font-size: 14px; }
+
+  .party-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-bottom: 24px; }
+  @media (max-width: 520px) { .party-grid { grid-template-columns: 1fr; } }
+
+  .party h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-faint); margin: 0 0 6px; font-family: 'IBM Plex Mono', monospace; font-weight: 500; }
+  .party .name { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .party .id-line { font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; color: var(--text-muted); }
+  .party .missing { color: var(--danger); font-style: italic; font-size: 12.5px; }
+
+  table.items { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-bottom: 6px; }
+  table.items th {
+    text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--text-faint); padding: 0 10px 10px 0; border-bottom: 1px solid var(--border);
+    font-weight: 500; font-family: 'IBM Plex Mono', monospace;
+  }
+  table.items td { padding: 11px 10px 11px 0; border-bottom: 1px solid var(--border-soft); vertical-align: top; }
+  table.items td.num { font-family: 'IBM Plex Mono', monospace; text-align: right; white-space: nowrap; }
+  table.items th.num { text-align: right; }
+  table.items tr.warn td { background: var(--danger-bg); }
+  table.items tr:last-child td { border-bottom: none; }
+
+  .totals { margin-top: 16px; display: flex; justify-content: flex-end; }
+  .totals table { font-family: 'IBM Plex Mono', monospace; font-size: 13.5px; border-collapse: collapse; }
+  .totals td { padding: 5px 0 5px 24px; text-align: right; }
+  .totals tr.grand td { font-weight: 700; font-size: 16px; border-top: 1px solid var(--border); padding-top: 10px; background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .totals .label { color: var(--text-faint); font-family: 'Inter', sans-serif; font-size: 11.5px; padding-right: 12px; }
+
+  .doc-footer {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--border);
+    flex-wrap: wrap; gap: 12px;
+  }
+  .source-tag {
+    font-size: 11px; color: var(--text-faint); background: var(--card-2);
+    border: 1px solid var(--border); padding: 5px 10px; border-radius: 6px;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .badge {
+    font-size: 12px; font-weight: 600; padding: 6px 14px; border-radius: 20px;
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--success-bg); color: var(--success); border: 1px solid var(--success-border);
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .badge.bad { background: var(--danger-bg); color: var(--danger); border-color: var(--danger-border); }
+
+  .issues-list {
+    margin-top: 16px; background: var(--danger-bg); border: 1px solid var(--danger-border);
+    border-radius: 10px; padding: 12px 16px; font-size: 12.5px; color: var(--danger);
+  }
+  .issues-list strong { display: block; margin-bottom: 4px; }
+  .issues-list ul { margin: 4px 0 0; padding-left: 18px; line-height: 1.7; }
+
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+
+  footer.hint { text-align: center; padding: 20px; font-size: 11.5px; color: var(--text-faint); font-family: 'IBM Plex Mono', monospace; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="brand-mark">EX</div>
+    <div class="brand-text">
+      <h1>Extracta B2B</h1>
+      <p>Extraction → JSON</p>
+    </div>
+  </div>
+  <div class="api-row">
+    <div class="status-pill">
+      <span class="status-dot" id="statusDot"></span>
+      <span id="statusLabel">non connecté</span>
+    </div>
+    <input type="text" id="apiUrlInput" placeholder="https://xxxx.trycloudflare.com" autocomplete="off" aria-label="URL de l'API">
+    <button class="btn-connect" id="saveApiBtn">Connecter</button>
+  </div>
+</div>
+
+<div class="hero">
+  <p class="eyebrow">Document Intelligence</p>
+  <h2>Transforme n'importe quelle facture en <span class="gradient-text">JSON structuré</span>.</h2>
+  <p>Dépose une image de facture. Le pipeline lit la mise en page, reconstruit le tableau des articles et vérifie la cohérence arithmétique avant de te livrer un résultat propre.</p>
+</div>
+
+<main>
+  <div class="card grid-texture" id="uploadCard">
+    <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Déposer une facture ou cliquer pour choisir un fichier">
+      <div id="dzDefault">
+        <div class="drop-icon" style="margin: 0 auto 16px;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+        </div>
+        <div class="filename">Dépose ta facture ici</div>
+        <div class="filesub">PDF · PNG · JPG</div>
+        <div class="btn-row">
+          <button type="button" class="btn-gradient" id="chooseFileBtn">Choisir un fichier</button>
+        </div>
+      </div>
+
+      <div id="dzPreview" style="display:none; width:100%;">
+        <div class="preview-img-wrap" id="previewBox">
+          <img id="previewImg" alt="Aperçu de la facture téléversée">
+        </div>
+        <div class="progress-bar"></div>
+        <div class="filename mono" id="fileName" style="margin-top:12px; font-size:13px;"></div>
+        <div class="btn-row">
+          <button type="button" class="btn-gradient" id="analyzeBtn" disabled>Analyser la facture</button>
+          <button type="button" class="btn-outline" id="changeFileBtn">Changer de fichier</button>
+        </div>
+      </div>
+    </div>
+    <input type="file" id="fileInput" accept="image/*" class="sr-only">
+  </div>
+
+  <div id="errorBox" style="display:none;"></div>
+
+  <div class="results-wrap">
+    <p class="panel-label">Résultat</p>
+    <div class="card grid-texture" id="resultsShell">
+      <p class="empty-note">Aucune facture analysée pour l'instant.</p>
+    </div>
+  </div>
+</main>
+
+<footer class="hint">L'URL de l'API doit être reconfigurée à chaque nouveau tunnel Cloudflare</footer>
+
+<script>
+  let apiUrl = "";
+  let selectedFile = null;
+  let objectUrl = null;
+
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  const dzDefault = document.getElementById('dzDefault');
+  const dzPreview = document.getElementById('dzPreview');
+  const previewImg = document.getElementById('previewImg');
+  const previewBox = document.getElementById('previewBox');
+  const fileNameEl = document.getElementById('fileName');
+  const analyzeBtn = document.getElementById('analyzeBtn');
+  const chooseFileBtn = document.getElementById('chooseFileBtn');
+  const changeFileBtn = document.getElementById('changeFileBtn');
+  const errorBox = document.getElementById('errorBox');
+  const resultsShell = document.getElementById('resultsShell');
+  const apiUrlInput = document.getElementById('apiUrlInput');
+  const saveApiBtn = document.getElementById('saveApiBtn');
+  const statusDot = document.getElementById('statusDot');
+  const statusLabel = document.getElementById('statusLabel');
+
+  function setStatus(state, label) {
+    statusDot.className = 'status-dot ' + state;
+    statusLabel.textContent = label;
+  }
+
+  function normalizeUrl(u) { return u.trim().replace(/\/+$/, ''); }
+
+  async function checkApi() {
+    const raw = apiUrlInput.value;
+    if (!raw.trim()) { setStatus('', 'non connecté'); apiUrl = ""; updateAnalyzeState(); return; }
+    apiUrl = normalizeUrl(raw);
+    setStatus('pending', 'vérification…');
+    try {
+      const res = await fetch(apiUrl + '/', { method: 'GET' });
+      if (res.ok) setStatus('ok', 'connecté'); else setStatus('err', 'erreur ' + res.status);
+    } catch (e) { setStatus('err', 'injoignable'); }
+    updateAnalyzeState();
+  }
+
+  saveApiBtn.addEventListener('click', checkApi);
+  apiUrlInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') checkApi(); });
+
+  function updateAnalyzeState() { analyzeBtn.disabled = !(selectedFile && apiUrl); }
+
+  function handleFile(file) {
+    if (!file || !file.type.startsWith('image/')) return;
+    selectedFile = file;
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    objectUrl = URL.createObjectURL(file);
+    previewImg.src = objectUrl;
+    fileNameEl.textContent = file.name + ' — ' + (file.size / 1024).toFixed(0) + ' Ko';
+    dzDefault.style.display = 'none';
+    dzPreview.style.display = 'block';
+    errorBox.style.display = 'none';
+    updateAnalyzeState();
+  }
+
+  chooseFileBtn.addEventListener('click', (e) => { e.stopPropagation(); fileInput.click(); });
+  dropzone.addEventListener('click', (e) => { if (dzDefault.style.display !== 'none') fileInput.click(); });
+  dropzone.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && dzDefault.style.display !== 'none') { e.preventDefault(); fileInput.click(); } });
+  fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
+
+  ['dragover', 'dragenter'].forEach(evt => dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.add('dragover'); }));
+  ['dragleave', 'dragend'].forEach(evt => dropzone.addEventListener(evt, () => dropzone.classList.remove('dragover')));
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault(); dropzone.classList.remove('dragover');
+    if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+  });
+
+  changeFileBtn.addEventListener('click', () => {
+    selectedFile = null;
+    dzPreview.style.display = 'none';
+    dzDefault.style.display = 'block';
+    fileInput.value = '';
+    updateAnalyzeState();
+  });
+
+  function escapeHtml(s) {
+    if (s === null || s === undefined) return '';
+    return String(s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function fieldOrMissing(value, label) {
+    if (value === null || value === undefined || value === '') return '<span class="missing">' + label + ' non détecté</span>';
+    return escapeHtml(value);
+  }
+
+  function renderResults(data) {
+    const ex = data.extraction || {};
+    const header = ex.header || {};
+    const summary = ex.summary || {};
+    const items = ex.items || [];
+    const coherenceSummary = data.coherence_summary || {};
+    const coherenceItems = data.coherence_items || {};
+    const warnRows = new Set((coherenceItems.problemes || []).map(p => p.item_index));
+
+    const itemsHtml = items.map((it, idx) => {
+      const isWarn = warnRows.has(idx);
+      return `<tr class="${isWarn ? 'warn' : ''}">
+        <td>${fieldOrMissing(it.description, 'description')}</td>
+        <td class="num">${escapeHtml(it.qty) || '—'}</td>
+        <td class="num">${escapeHtml(it.net_price) || '—'}</td>
+        <td class="num">${escapeHtml(it.net_worth) || '—'}</td>
+        <td class="num">${escapeHtml(it.vat) || '—'}</td>
+        <td class="num">${escapeHtml(it.gross_worth) || '—'}</td>
+      </tr>`;
+    }).join('');
+
+    const isCoherent = coherenceSummary.coherent === true && (coherenceItems.problemes || []).length === 0;
+    const sourceLabel = ex.items_source === 'table_transformer_grid' ? 'grille de tableau' : 'modèle NER (repli)';
+
+    let issuesHtml = '';
+    const problems = coherenceItems.problemes || [];
+    if (problems.length > 0 || (coherenceSummary.status && coherenceSummary.status !== 'ok')) {
+      const lines = problems.map(p => `<li>Article ${p.item_index + 1} — ${escapeHtml(p.issue).replace(/_/g, ' ')}</li>`);
+      if (coherenceSummary.status && coherenceSummary.status !== 'ok') {
+        lines.unshift(`<li>Totaux de la facture — ${escapeHtml(coherenceSummary.status).replace(/_/g, ' ')}</li>`);
+      }
+      issuesHtml = `<div class="issues-list"><strong>Écarts détectés</strong><ul>${lines.join('')}</ul></div>`;
+    }
+
+    resultsShell.innerHTML = `
+      <div class="doc">
+        <div class="doc-head">
+          <div>
+            <div class="num-label">Facture N°</div>
+            <div class="num mono">${fieldOrMissing(header.invoice_number, 'numéro')}</div>
+          </div>
+          <div>
+            <div class="num-label" style="text-align:right;">Date</div>
+            <div class="date mono">${fieldOrMissing(header.invoice_date, 'date')}</div>
+          </div>
+        </div>
+
+        <div class="party-grid">
+          <div class="party">
+            <h3>Vendeur</h3>
+            <div class="name">${fieldOrMissing(header.seller, 'vendeur')}</div>
+            <div class="id-line">TVA ${fieldOrMissing(header.seller_tax_id, 'ID')}</div>
+            <div class="id-line">${fieldOrMissing(header.iban, 'IBAN')}</div>
+          </div>
+          <div class="party">
+            <h3>Client</h3>
+            <div class="name">${fieldOrMissing(header.client, 'client')}</div>
+            <div class="id-line">TVA ${fieldOrMissing(header.client_tax_id, 'ID')}</div>
+          </div>
+        </div>
+
+        <table class="items">
+          <thead>
+            <tr>
+              <th>Description</th>
+              <th class="num">Qté</th>
+              <th class="num">Px net</th>
+              <th class="num">Mt net</th>
+              <th class="num">TVA</th>
+              <th class="num">Mt TTC</th>
+            </tr>
+          </thead>
+          <tbody>${itemsHtml || '<tr><td colspan="6" style="color:var(--text-faint);padding:16px 0;">Aucun article détecté</td></tr>'}</tbody>
+        </table>
+
+        <div class="totals">
+          <table>
+            <tr><td class="label">Total net</td><td>${escapeHtml(summary.total_net_worth) || '—'}</td></tr>
+            <tr><td class="label">TVA (${escapeHtml(summary.total_vat_percent) || '—'})</td><td>${escapeHtml(summary.total_vat) || '—'}</td></tr>
+            <tr class="grand"><td class="label" style="-webkit-text-fill-color: var(--text-faint); color: var(--text-faint);">Total TTC</td><td>${escapeHtml(summary.total_gross_worth) || '—'}</td></tr>
+          </table>
+        </div>
+
+        ${issuesHtml}
+
+        <div class="doc-footer">
+          <span class="source-tag">détection : ${sourceLabel}</span>
+          <span class="badge ${isCoherent ? '' : 'bad'}">${isCoherent ? '✓ cohérent' : '⚠ écart détecté'}</span>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderError(message) {
+    resultsShell.innerHTML = `<p class="empty-note" style="color: var(--danger);">${escapeHtml(message)}</p>`;
+  }
+
+  analyzeBtn.addEventListener('click', async () => {
+    if (!selectedFile || !apiUrl) return;
+    errorBox.style.display = 'none';
+    analyzeBtn.disabled = true;
+    analyzeBtn.textContent = 'Analyse en cours…';
+    previewBox.parentElement.classList.add('scanning');
+
+    resultsShell.innerHTML = `<p class="empty-note">Extraction en cours — OCR, LayoutLMv3 et Table Transformer traitent le document…</p>`;
+
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+
+    try {
+      const res = await fetch(apiUrl + '/predict', { method: 'POST', body: formData });
+      if (!res.ok) throw new Error('Le serveur a répondu avec le code ' + res.status);
+      const data = await res.json();
+      if (data.error) renderError(data.error); else renderResults(data);
+    } catch (e) {
+      renderError("Échec de la requête — " + e.message + ". Vérifie que le tunnel Cloudflare et l'API tournent toujours sur Colab.");
+    } finally {
+      previewBox.parentElement.classList.remove('scanning');
+      analyzeBtn.disabled = false;
+      analyzeBtn.textContent = 'Analyser la facture';
+      updateAnalyzeState();
+    }
+  });
+</script>
+
+</body>
+</html>
