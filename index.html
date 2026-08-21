@@ -359,7 +359,11 @@
 
       <div id="dzPreview" style="display:none; width:100%;">
         <div class="preview-img-wrap" id="previewBox">
-          <img id="previewImg" alt="Aperçu de la facture téléversée">
+          <img id="previewImg" alt="Aperçu de la facture téléversée" style="display:none;">
+          <div id="pdfPlaceholder" style="display:none; align-items:center; justify-content:center; flex-direction:column; gap:10px; padding:44px 20px; color:var(--text-faint); font-size:12.5px; text-align:center;">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+            <span>Aperçu non disponible pour un PDF — la première page sera analysée</span>
+          </div>
         </div>
         <div class="progress-bar"></div>
         <div class="filename mono" id="fileName" style="margin-top:12px; font-size:13px;"></div>
@@ -369,7 +373,7 @@
         </div>
       </div>
     </div>
-    <input type="file" id="fileInput" accept="image/*" class="sr-only">
+    <input type="file" id="fileInput" accept="image/*,application/pdf" class="sr-only">
   </div>
 
   <div id="errorBox" style="display:none;"></div>
@@ -431,11 +435,23 @@
   function updateAnalyzeState() { analyzeBtn.disabled = !(selectedFile && apiUrl); }
 
   function handleFile(file) {
-    if (!file || !file.type.startsWith('image/')) return;
+    if (!file) return;
+    const isImage = file.type.startsWith('image/');
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    if (!isImage && !isPdf) return;
+
     selectedFile = file;
-    if (objectUrl) URL.revokeObjectURL(objectUrl);
-    objectUrl = URL.createObjectURL(file);
-    previewImg.src = objectUrl;
+    const pdfPlaceholder = document.getElementById('pdfPlaceholder');
+    if (isImage) {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      objectUrl = URL.createObjectURL(file);
+      previewImg.src = objectUrl;
+      previewImg.style.display = 'block';
+      pdfPlaceholder.style.display = 'none';
+    } else {
+      previewImg.style.display = 'none';
+      pdfPlaceholder.style.display = 'flex';
+    }
     fileNameEl.textContent = file.name + ' — ' + (file.size / 1024).toFixed(0) + ' Ko';
     dzDefault.style.display = 'none';
     dzPreview.style.display = 'block';
