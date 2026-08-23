@@ -315,9 +315,87 @@
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
 
   footer.hint { text-align: center; padding: 20px; font-size: 11.5px; color: var(--text-faint); font-family: 'IBM Plex Mono', monospace; }
+
+  /* ---------- Écran de connexion ---------- */
+  #authScreen {
+    position: fixed; inset: 0; z-index: 1000;
+    background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px;
+  }
+  .auth-card {
+    width: 100%; max-width: 380px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 32px;
+  }
+  .auth-card .brand-mark { margin: 0 auto 18px; }
+  .auth-card h2 { text-align: center; font-size: 18px; margin: 0 0 6px; font-weight: 700; }
+  .auth-card p.sub { text-align: center; color: var(--text-muted); font-size: 12.5px; margin: 0 0 24px; }
+  .auth-field { margin-bottom: 14px; }
+  .auth-field label { display: block; font-size: 11.5px; color: var(--text-muted); margin-bottom: 6px; font-family: 'IBM Plex Mono', monospace; text-transform: uppercase; letter-spacing: 0.5px; }
+  .auth-field input {
+    width: 100%; box-sizing: border-box;
+    background: var(--card-2); border: 1px solid var(--border); color: var(--text);
+    font-family: 'Inter', sans-serif; font-size: 13.5px;
+    padding: 11px 13px; border-radius: 8px;
+  }
+  .auth-field input:focus-visible { outline: 2px solid var(--teal); outline-offset: 1px; }
+  .auth-submit {
+    width: 100%; margin-top: 6px;
+    background: var(--grad); border: none; color: #0A0D14;
+    font-family: 'Inter', sans-serif; font-weight: 700; font-size: 13.5px;
+    padding: 12px 16px; border-radius: 24px; cursor: pointer;
+  }
+  .auth-submit:disabled { opacity: 0.4; cursor: not-allowed; }
+  .auth-toggle {
+    text-align: center; margin-top: 16px; font-size: 12.5px; color: var(--text-muted);
+  }
+  .auth-toggle button {
+    background: none; border: none; color: var(--teal); cursor: pointer;
+    font-size: 12.5px; font-family: 'Inter', sans-serif; text-decoration: underline; padding: 0;
+  }
+  .auth-error {
+    margin-top: 14px; background: var(--danger-bg); border: 1px solid var(--danger-border);
+    color: var(--danger); font-size: 12.5px; padding: 10px 13px; border-radius: 8px;
+  }
+  #appShell { display: none; }
+  .logout-btn {
+    background: var(--card-2); border: 1px solid var(--border); color: var(--text-muted);
+    font-family: 'Inter', sans-serif; font-size: 11.5px; padding: 7px 12px; border-radius: 8px; cursor: pointer;
+  }
 </style>
 </head>
 <body>
+
+<div id="authScreen">
+  <div class="auth-card">
+    <div class="brand-mark" style="width:40px;height:40px;font-size:15px;">EX</div>
+    <h2 id="authTitle">Se connecter</h2>
+    <p class="sub" id="authSub">Accède à l'outil d'extraction de factures</p>
+    <div class="auth-field">
+      <label for="authApiUrl">URL de l'API</label>
+      <input type="text" id="authApiUrl" placeholder="https://xxxx.trycloudflare.com" autocomplete="off">
+    </div>
+    <div class="auth-field">
+      <label for="authEmail">Email</label>
+      <input type="email" id="authEmail" autocomplete="username">
+    </div>
+    <div class="auth-field">
+      <label for="authPassword">Mot de passe</label>
+      <input type="password" id="authPassword" autocomplete="current-password">
+    </div>
+    <button class="auth-submit" id="authSubmitBtn">Se connecter</button>
+    <div class="auth-toggle">
+      <span id="authToggleText">Pas encore de compte ?</span>
+      <button id="authToggleBtn" type="button">Créer un compte</button>
+    </div>
+    <div id="authError" class="auth-error" style="display:none;"></div>
+  </div>
+</div>
+
+<div id="appShell">
 
 <div class="topbar">
   <div class="brand">
@@ -334,6 +412,7 @@
     </div>
     <input type="text" id="apiUrlInput" placeholder="https://xxxx.trycloudflare.com" autocomplete="off" aria-label="URL de l'API">
     <button class="btn-connect" id="saveApiBtn">Connecter</button>
+    <button class="logout-btn" id="logoutBtn">Se déconnecter</button>
   </div>
 </div>
 
@@ -388,10 +467,111 @@
 
 <footer class="hint">L'URL de l'API doit être reconfigurée à chaque nouveau tunnel Cloudflare</footer>
 
+</div>
+<!-- fin #appShell -->
+
 <script>
   let apiUrl = "";
   let selectedFile = null;
   let objectUrl = null;
+  let authToken = null; // en mémoire uniquement — perdu si la page est rechargée, il faudra se reconnecter
+  let authMode = 'login'; // 'login' ou 'signup'
+
+  // ---------- Authentification ----------
+  const authScreen = document.getElementById('authScreen');
+  const appShell = document.getElementById('appShell');
+  const authEmail = document.getElementById('authEmail');
+  const authPassword = document.getElementById('authPassword');
+  const authSubmitBtn = document.getElementById('authSubmitBtn');
+  const authError = document.getElementById('authError');
+  const authTitle = document.getElementById('authTitle');
+  const authSub = document.getElementById('authSub');
+  const authToggleText = document.getElementById('authToggleText');
+  const authToggleBtn = document.getElementById('authToggleBtn');
+  const logoutBtn = document.getElementById('logoutBtn');
+
+  function showAuthError(msg) {
+    authError.textContent = msg;
+    authError.style.display = 'block';
+  }
+
+  authToggleBtn.addEventListener('click', () => {
+    authMode = authMode === 'login' ? 'signup' : 'login';
+    if (authMode === 'signup') {
+      authTitle.textContent = 'Créer un compte';
+      authSub.textContent = "Crée un accès pour utiliser l'outil";
+      authSubmitBtn.textContent = 'Créer le compte';
+      authToggleText.textContent = 'Déjà un compte ?';
+      authToggleBtn.textContent = 'Se connecter';
+    } else {
+      authTitle.textContent = 'Se connecter';
+      authSub.textContent = "Accède à l'outil d'extraction de factures";
+      authSubmitBtn.textContent = 'Se connecter';
+      authToggleText.textContent = 'Pas encore de compte ?';
+      authToggleBtn.textContent = 'Créer un compte';
+    }
+    authError.style.display = 'none';
+  });
+
+  authSubmitBtn.addEventListener('click', async () => {
+    const email = authEmail.value.trim();
+    const password = authPassword.value;
+    const currentApiUrl = document.getElementById('authApiUrl').value.trim().replace(/\/+$/, '');
+
+    if (!currentApiUrl) {
+      showAuthError("Renseigne d'abord l'URL de l'API ci-dessus.");
+      return;
+    }
+    if (!email || !password) {
+      showAuthError('Email et mot de passe requis.');
+      return;
+    }
+
+    authError.style.display = 'none';
+    authSubmitBtn.disabled = true;
+    authSubmitBtn.textContent = authMode === 'login' ? 'Connexion…' : 'Création…';
+
+    try {
+      const endpoint = authMode === 'login' ? '/login' : '/signup';
+      const res = await fetch(currentApiUrl + endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || 'Échec de la requête.');
+      }
+      if (authMode === 'signup') {
+        authMode = 'login';
+        authTitle.textContent = 'Se connecter';
+        authSub.textContent = 'Compte créé — connecte-toi maintenant';
+        authSubmitBtn.textContent = 'Se connecter';
+        authToggleText.textContent = 'Pas encore de compte ?';
+        authToggleBtn.textContent = 'Créer un compte';
+        authPassword.value = '';
+      } else {
+        authToken = data.token;
+        apiUrl = currentApiUrl;
+        apiUrlInput.value = currentApiUrl;
+        authScreen.style.display = 'none';
+        appShell.style.display = 'block';
+        checkApi();
+      }
+    } catch (e) {
+      showAuthError(e.message);
+    } finally {
+      authSubmitBtn.disabled = false;
+      authSubmitBtn.textContent = authMode === 'login' ? 'Se connecter' : 'Créer le compte';
+    }
+  });
+
+  logoutBtn.addEventListener('click', () => {
+    authToken = null;
+    appShell.style.display = 'none';
+    authScreen.style.display = 'flex';
+    authPassword.value = '';
+  });
 
   const dropzone = document.getElementById('dropzone');
   const fileInput = document.getElementById('fileInput');
@@ -638,7 +818,18 @@
     formData.append('file', selectedFile);
 
     try {
-      const res = await fetch(apiUrl + '/predict', { method: 'POST', body: formData });
+      const res = await fetch(apiUrl + '/predict', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + authToken },
+        body: formData
+      });
+      if (res.status === 401) {
+        authToken = null;
+        appShell.style.display = 'none';
+        authScreen.style.display = 'flex';
+        showAuthError('Session expirée, reconnecte-toi.');
+        throw new Error('Session expirée.');
+      }
       if (!res.ok) throw new Error('Le serveur a répondu avec le code ' + res.status);
       const data = await res.json();
       if (data.error) renderError(data.error); else renderResults(data);
