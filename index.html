@@ -317,7 +317,7 @@
   footer.hint { text-align: center; padding: 20px; font-size: 11.5px; color: var(--text-faint); font-family: 'IBM Plex Mono', monospace; }
 
   /* ---------- Écran de connexion ---------- */
-  #authScreen {
+  #authScreen, #urlScreen {
     position: fixed; inset: 0; z-index: 1000;
     background: var(--bg);
     display: flex; align-items: center; justify-content: center;
@@ -369,15 +369,25 @@
 </head>
 <body>
 
-<div id="authScreen">
+<div id="urlScreen">
+  <div class="auth-card">
+    <div class="brand-mark" style="width:40px;height:40px;font-size:15px;">EX</div>
+    <h2>Extracta B2B</h2>
+    <p class="sub">Indique l'adresse de l'API avant de continuer</p>
+    <div class="auth-field">
+      <label for="urlScreenInput">URL de l'API</label>
+      <input type="text" id="urlScreenInput" placeholder="https://xxxx.trycloudflare.com" autocomplete="off">
+    </div>
+    <button class="auth-submit" id="urlScreenBtn">Continuer</button>
+    <div id="urlScreenError" class="auth-error" style="display:none;"></div>
+  </div>
+</div>
+
+<div id="authScreen" style="display:none;">
   <div class="auth-card">
     <div class="brand-mark" style="width:40px;height:40px;font-size:15px;">EX</div>
     <h2 id="authTitle">Se connecter</h2>
     <p class="sub" id="authSub">Accède à l'outil d'extraction de factures</p>
-    <div class="auth-field">
-      <label for="authApiUrl">URL de l'API</label>
-      <input type="text" id="authApiUrl" placeholder="https://xxxx.trycloudflare.com" autocomplete="off">
-    </div>
     <div class="auth-field">
       <label for="authEmail">Email</label>
       <input type="email" id="authEmail" autocomplete="username">
@@ -393,6 +403,7 @@
     </div>
     <div id="authError" class="auth-error" style="display:none;"></div>
   </div>
+
 </div>
 
 <div id="appShell">
@@ -477,6 +488,39 @@
   let authToken = null; // en mémoire uniquement — perdu si la page est rechargée, il faudra se reconnecter
   let authMode = 'login'; // 'login' ou 'signup'
 
+  // ---------- Écran 1 : URL de l'API ----------
+  const urlScreen = document.getElementById('urlScreen');
+  const urlScreenInput = document.getElementById('urlScreenInput');
+  const urlScreenBtn = document.getElementById('urlScreenBtn');
+  const urlScreenError = document.getElementById('urlScreenError');
+
+  urlScreenBtn.addEventListener('click', async () => {
+    const url = urlScreenInput.value.trim().replace(/\/+$/, '');
+    urlScreenError.style.display = 'none';
+    if (!url) {
+      urlScreenError.textContent = "Renseigne l'URL de l'API.";
+      urlScreenError.style.display = 'block';
+      return;
+    }
+    urlScreenBtn.disabled = true;
+    urlScreenBtn.textContent = 'Vérification…';
+    try {
+      const res = await fetch(url + '/', { method: 'GET' });
+      if (!res.ok) throw new Error('L\'API a répondu avec une erreur (' + res.status + ').');
+      apiUrl = url;
+      apiUrlInput.value = url;
+      urlScreen.style.display = 'none';
+      authScreen.style.display = 'flex';
+    } catch (e) {
+      urlScreenError.textContent = "Impossible de joindre cette adresse — vérifie l'URL et que le tunnel est actif.";
+      urlScreenError.style.display = 'block';
+    } finally {
+      urlScreenBtn.disabled = false;
+      urlScreenBtn.textContent = 'Continuer';
+    }
+  });
+  urlScreenInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') urlScreenBtn.click(); });
+
   // ---------- Authentification ----------
   const authScreen = document.getElementById('authScreen');
   const appShell = document.getElementById('appShell');
@@ -516,12 +560,8 @@
   authSubmitBtn.addEventListener('click', async () => {
     const email = authEmail.value.trim();
     const password = authPassword.value;
-    const currentApiUrl = document.getElementById('authApiUrl').value.trim().replace(/\/+$/, '');
+    const currentApiUrl = apiUrl; // déjà validé et stocké à l'écran 1
 
-    if (!currentApiUrl) {
-      showAuthError("Renseigne d'abord l'URL de l'API ci-dessus.");
-      return;
-    }
     if (!email || !password) {
       showAuthError('Email et mot de passe requis.');
       return;
