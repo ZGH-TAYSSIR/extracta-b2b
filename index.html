@@ -760,12 +760,16 @@
           <div class="party">
             <h3>Vendeur</h3>
             <div class="name">${fieldOrMissing(header.seller, 'vendeur')}</div>
+	    <div class="id-line">${fieldOrMissing(header.seller_address, 'adresse')}</div>
+
             <div class="id-line">TVA ${fieldOrMissing(header.seller_tax_id, 'ID')}</div>
             <div class="id-line">${fieldOrMissing(header.iban, 'IBAN')}</div>
           </div>
           <div class="party">
             <h3>Client</h3>
             <div class="name">${fieldOrMissing(header.client, 'client')}</div>
+	    <div class="id-line">${fieldOrMissing(header.client_address, 'adresse')}</div>
+
             <div class="id-line">TVA ${fieldOrMissing(header.client_tax_id, 'ID')}</div>
           </div>
         </div>
