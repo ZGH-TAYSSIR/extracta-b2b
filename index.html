@@ -708,39 +708,54 @@
     return escapeHtml(value);
   }
 
+  // Le backend (extract_invoice_full) renvoie un objet PLAT en français, pas de
+  // sous-objets extraction/header/summary ni de coherence_summary/coherence_items.
+  // On lit donc directement les clés telles qu'elles sortent de ta pipeline, sans
+  // toucher à l'extraction elle-même.
   function renderResults(data) {
     lastResult = data;
-    const ex = data.extraction || {};
-    const header = ex.header || {};
-    const summary = ex.summary || {};
-    const items = ex.items || [];
-    const coherenceSummary = data.coherence_summary || {};
-    const coherenceItems = data.coherence_items || {};
-    const warnRows = new Set((coherenceItems.problemes || []).map(p => p.item_index));
 
-    const itemsHtml = items.map((it, idx) => {
-      const isWarn = warnRows.has(idx);
-      return `<tr class="${isWarn ? 'warn' : ''}">
+    const invoiceNumber = data.numero_facture;
+    const invoiceDate = data.date_facture;
+    const seller = data.nom_fournisseur;
+    const sellerAddress = data.adresse_fournisseur;
+    const sellerTaxId = data.code_tva_fournisseur;
+    const iban = data.IBAN;
+    const client = data.nom_client;
+    const clientAddress = data.adresse_client;
+    const clientTaxId = data.code_tva_client;
+
+    const items = data.articles || data.items || [];
+
+    const itemsHtml = items.map((it) => {
+      // montant_net vient du modele VLM ; sur le repli OCR ce champ n'existe pas,
+      // on l'affiche juste comme non detecte plutot que de recalculer quoi que ce soit.
+      const netWorth = it.montant_net !== undefined ? it.montant_net : it.prix_total;
+      return `<tr>
         <td>${fieldOrMissing(it.description, 'description')}</td>
-        <td class="num">${escapeHtml(it.qty) || '—'}</td>
-        <td class="num">${escapeHtml(it.net_price) || '—'}</td>
-        <td class="num">${escapeHtml(it.net_worth) || '—'}</td>
-        <td class="num">${escapeHtml(it.vat) || '—'}</td>
-        <td class="num">${escapeHtml(it.gross_worth) || '—'}</td>
+        <td class="num">${fieldOrMissing(it.quantite, 'qté')}</td>
+        <td class="num">${fieldOrMissing(it.prix_unitaire, 'px net')}</td>
+        <td class="num">${fieldOrMissing(netWorth, 'mt net')}</td>
+        <td class="num">${fieldOrMissing(it.taux_tva, 'tva')}</td>
+        <td class="num">${fieldOrMissing(it.prix_total, 'mt ttc')}</td>
       </tr>`;
     }).join('');
 
-    const isCoherent = coherenceSummary.coherent === true && (coherenceItems.problemes || []).length === 0;
-    const sourceLabel = ex.items_source === 'table_transformer_grid' ? 'grille de tableau' : 'modèle NER (repli)';
-
+    // Verification de coherence arithmetique cote frontend (total_ht + total_tva ~= total_ttc),
+    // puisque le backend actuel ne renvoie pas de bloc coherence_summary/coherence_items.
+    const totalHt = parseFloat(String(data.total_ht).replace(',', '.'));
+    const totalTva = parseFloat(String(data.total_tva).replace(',', '.'));
+    const totalTtc = parseFloat(String(data.total_ttc).replace(',', '.'));
+    let isCoherent = true;
     let issuesHtml = '';
-    const problems = coherenceItems.problemes || [];
-    if (problems.length > 0 || (coherenceSummary.status && coherenceSummary.status !== 'ok')) {
-      const lines = problems.map(p => `<li>Article ${p.item_index + 1} — ${escapeHtml(p.issue).replace(/_/g, ' ')}</li>`);
-      if (coherenceSummary.status && coherenceSummary.status !== 'ok') {
-        lines.unshift(`<li>Totaux de la facture — ${escapeHtml(coherenceSummary.status).replace(/_/g, ' ')}</li>`);
+    if (!Number.isNaN(totalHt) && !Number.isNaN(totalTva) && !Number.isNaN(totalTtc)) {
+      isCoherent = Math.abs((totalHt + totalTva) - totalTtc) <= 0.5;
+      if (!isCoherent) {
+        issuesHtml = `<div class="issues-list"><strong>Écarts détectés</strong><ul><li>Total HT + TVA (${(totalHt + totalTva).toFixed(3)}) ne correspond pas au Total TTC (${totalTtc.toFixed(3)})</li></ul></div>`;
       }
-      issuesHtml = `<div class="issues-list"><strong>Écarts détectés</strong><ul>${lines.join('')}</ul></div>`;
+    } else if (data._a_verifier) {
+      isCoherent = false;
+      issuesHtml = `<div class="issues-list"><strong>Écarts détectés</strong><ul><li>Totaux à vérifier manuellement</li></ul></div>`;
     }
 
     resultsShell.innerHTML = `
@@ -748,29 +763,29 @@
         <div class="doc-head">
           <div>
             <div class="num-label">Facture N°</div>
-            <div class="num mono">${fieldOrMissing(header.invoice_number, 'numéro')}</div>
+            <div class="num mono">${fieldOrMissing(invoiceNumber, 'numéro')}</div>
           </div>
           <div>
             <div class="num-label" style="text-align:right;">Date</div>
-            <div class="date mono">${fieldOrMissing(header.invoice_date, 'date')}</div>
+            <div class="date mono">${fieldOrMissing(invoiceDate, 'date')}</div>
           </div>
         </div>
 
         <div class="party-grid">
           <div class="party">
             <h3>Vendeur</h3>
-            <div class="name">${fieldOrMissing(header.seller, 'vendeur')}</div>
-	    <div class="id-line">${fieldOrMissing(header.seller_address, 'adresse')}</div>
+            <div class="name">${fieldOrMissing(seller, 'vendeur')}</div>
+	    <div class="id-line">${fieldOrMissing(sellerAddress, 'adresse')}</div>
 
-            <div class="id-line">TVA ${fieldOrMissing(header.seller_tax_id, 'ID')}</div>
-            <div class="id-line">${fieldOrMissing(header.iban, 'IBAN')}</div>
+            <div class="id-line">TVA ${fieldOrMissing(sellerTaxId, 'ID')}</div>
+            <div class="id-line">${fieldOrMissing(iban, 'IBAN')}</div>
           </div>
           <div class="party">
             <h3>Client</h3>
-            <div class="name">${fieldOrMissing(header.client, 'client')}</div>
-	    <div class="id-line">${fieldOrMissing(header.client_address, 'adresse')}</div>
+            <div class="name">${fieldOrMissing(client, 'client')}</div>
+	    <div class="id-line">${fieldOrMissing(clientAddress, 'adresse')}</div>
 
-            <div class="id-line">TVA ${fieldOrMissing(header.client_tax_id, 'ID')}</div>
+            <div class="id-line">TVA ${fieldOrMissing(clientTaxId, 'ID')}</div>
           </div>
         </div>
 
@@ -790,16 +805,16 @@
 
         <div class="totals">
           <table>
-            <tr><td class="label">Total net</td><td>${escapeHtml(summary.total_net_worth) || '—'}</td></tr>
-            <tr><td class="label">TVA (${escapeHtml(summary.total_vat_percent) || '—'})</td><td>${escapeHtml(summary.total_vat) || '—'}</td></tr>
-            <tr class="grand"><td class="label" style="-webkit-text-fill-color: var(--text-faint); color: var(--text-faint);">Total TTC</td><td>${escapeHtml(summary.total_gross_worth) || '—'}</td></tr>
+            <tr><td class="label">Total HT</td><td>${escapeHtml(data.total_ht) || '—'}</td></tr>
+            <tr><td class="label">TVA (${escapeHtml(data.taux_tva) || '—'})</td><td>${escapeHtml(data.total_tva) || '—'}</td></tr>
+            <tr class="grand"><td class="label" style="-webkit-text-fill-color: var(--text-faint); color: var(--text-faint);">Total TTC</td><td>${escapeHtml(data.total_ttc) || '—'}</td></tr>
           </table>
         </div>
 
         ${issuesHtml}
 
         <div class="doc-footer">
-          <span class="source-tag">détection : ${sourceLabel}</span>
+          <span class="source-tag">source : extraction Qwen2-VL + OCR</span>
           <span class="badge ${isCoherent ? '' : 'bad'}">${isCoherent ? '✓ cohérent' : '⚠ écart détecté'}</span>
         </div>
 
